@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: retail-api
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/retaildb
+    username: retail
+    password: retail
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  cache:
+    type: redis
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: retail-order-processor
+      auto-offset-reset: earliest
+    producer:
+      acks: all
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+  endpoint:
+    health:
+      show-details: always
+
+server:
+  port: 8080

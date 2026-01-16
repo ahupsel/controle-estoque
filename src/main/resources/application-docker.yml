@@ -1,0 +1,29 @@
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  server:
+    address: 0.0.0.0
+
+  datasource:
+    url: jdbc:postgresql://postgres:5433/retaildb
+    username: retail
+    password: retail
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    bootstrap-servers: kafka:9092
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
