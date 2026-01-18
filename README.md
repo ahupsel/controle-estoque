@@ -24,6 +24,31 @@ Camada de Infraestrutura (Banco de dados, Cache e Mensageria)
 Além disso, foi adotado o padrão de arquitetura orientada a eventos, utilizando Apache Kafka para desacoplar a criação do pedido do seu processamento.
 Essa abordagem permite maior escalabilidade, desacoplamento e clareza no fluxo de negócio.
 
+2. Fluxo Geral do Pedido
+
+O fluxo de criação e processamento de um pedido ocorre em duas etapas principais:
+
+Criação do Pedido (Síncrona)
+Processamento do Pedido (Assíncrona via Kafka)
+
+Objetivo:
+
+Registrar o pedido no sistema e publicar um evento indicando que ele está pronto para processamento.
+
+Fluxo
+
+O cliente envia uma requisição HTTP (POST /pedidos)
+A API valida os dados recebidos
+O pedido é persistido no banco com status inicial CRIADO
+Um evento PedidoCriadoEvento é publicado no Kafka
+
+Componentes envolvidos:
+
+PedidoController
+PedidoServico
+PedidoRepositorio
+PedidoCriadoPublicador (Interface - feita pra desacoplar o chamada do Kafka em um possivel cenario de imcompatibilidade) 
+
 Pré-requisitos:
 Docker
 Docker Compose
@@ -36,6 +61,9 @@ docker compose version
 Na raiz do projeto, execute:
 docker compose up -d --build (Isso irá subir automaticamente: PostgreSQL, Redis, Zookeeper, Kafka, Aplicação Spring Boot (retail_app))
 
+Verificar se a aplicação subiu no Log:
+docker logs -f retail_app
+
 Health Check:
 http://localhost:8080/actuator/health
 
@@ -46,7 +74,7 @@ Json:
   "documento": "12345678900",
   "nome": "Cliente Teste",
   "email": "cliente@teste.com",
-  "cep": "01001000"
+  "cep": "42710120"
 }
 
 Criar Produto:
@@ -73,14 +101,52 @@ Json:
   ]
 }
 
+> **Nota:** O pedido é criado com status CRIADO, processado de forma assíncrona via Kafka e atualizado automaticamente para PROCESSANDO → APROVADO / REJEITADO 
+Para refeitar um pedido faça um pedido com uma quantidade maior que no estoque> 
+    
+
 Redis - Verificando cache:
 docker exec -it retail_redis redis-cli
 keys *
+
+> **Nota:** A partir do segundo GET no produto o Redis criar o cache>
 
 
 Para a aplicação: docker compose down
 Remover volumes (dados): docker compose down -v
 
 
+> **Nota:** Memory Leak - Objetivo>
 
+Demonstrar a identificação, análise e correção de um cenário de vazamento de memória (memory leak) em uma aplicação Java com Spring Boot, mantendo a aplicação funcional após a correção.
 
+Cenário de Vazamento - Foi criado um cenário intencional e controlado de memory leak, baseado em:
+
+Uso de referência estática
+Armazenamento contínuo de objetos em coleção sem política de liberação
+Ausência de controle de ciclo de vida dos objetos
+
+Esse padrão representa um problema comum em aplicações Java, especialmente em caches manuais, singletons e listeners mal gerenciados.
+
+O vazamento pode ser identificado por:
+Crescimento contínuo do uso de heap
+Objetos não coletados pelo Garbage Collector
+Retenção de instâncias via referências estáticas
+
+Ferramentas recomendadas:
+VisualVM
+JConsole
+Heap dump para análise de retenção de objetos
+Correção
+
+A correção foi realizada através de:
+Remoção de referências estáticas desnecessárias
+Garantia de liberação adequada dos objetos
+Manutenção do controle de ciclo de vida das instâncias
+
+Após a correção, o Garbage Collector passa a atuar corretamente e o consumo de memória se estabiliza.
+
+Considerações Arquiteturais:
+O cenário de memory leak foi mantido isolado do domínio de negócio
+Nenhuma funcionalidade existente foi impactada
+A aplicação permanece estável e funcional após a correção
