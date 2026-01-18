@@ -6,5 +6,6 @@ import jakarta.validation.constraints.NotBlank;
 public record ClienteCriarRequest(
         @NotBlank String documento,
         @NotBlank String nome,
-        @NotBlank String email
+        @NotBlank String email,
+        @NotBlank String cep
 ) {}

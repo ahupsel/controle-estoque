@@ -3,6 +3,7 @@ package br.com.hupsel.controleestoque.dominio.cliente;
 import br.com.hupsel.controleestoque.api.cliente.dto.ClienteAtualizarRequest;
 import br.com.hupsel.controleestoque.api.cliente.dto.ClienteCriarRequest;
 import br.com.hupsel.controleestoque.api.cliente.dto.ClienteResponse;
+import br.com.hupsel.controleestoque.integracao.viacep.ViaCepCliente;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,15 +11,28 @@ import org.springframework.transaction.annotation.Transactional;
 public class ClienteServico {
 
     private final ClienteRepositorio repositorio;
+    private final ViaCepCliente viaCepCliente;
 
-    public ClienteServico(ClienteRepositorio repositorio) {
+    public ClienteServico(ClienteRepositorio repositorio,  ViaCepCliente viaCepCliente) {
         this.repositorio = repositorio;
+        this.viaCepCliente = viaCepCliente;
     }
 
     @Transactional
     public ClienteResponse criar(ClienteCriarRequest req) {
 
         var cliente = new Cliente(req.nome(), req.documento(), req.email());
+
+        var endereco = viaCepCliente.buscarPorCep(req.cep());
+
+        String cepLimpo = endereco.cep().replace("-", "");
+        cliente.setCep(cepLimpo);
+        cliente.setLogradouro(endereco.logradouro());
+        cliente.setBairro(endereco.bairro());
+        cliente.setCidade(endereco.localidade());
+        cliente.setUf(endereco.uf());
+
+
         cliente = repositorio.save(cliente);
 
         return toResponse(cliente);
