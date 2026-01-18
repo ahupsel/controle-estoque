@@ -130,30 +130,23 @@ public class PedidoServico {
 
         var itens = pedidoItemRepositorio.findByPedidoId(pedidoId);
 
-        for (var item : itens) {
+        try {
+            for (var item : itens) {
 
-            var produto = produtoRepositorio.findById(item.getProdutoId())
-                    .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
+                var produto = produtoRepositorio
+                        .buscarPorIdComLock(item.getProdutoId())
+                        .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
 
-            if (produto.getEstoque() < item.getQuantidade()) {
-                return false;
+                produto.debitarEstoque(item.getQuantidade());
+
+                produtoRepositorio.save(produto);
             }
+            return true;
+
+        } catch (IllegalStateException e) {
+            return false;
         }
-
-        // Se chegou aqui, tem estoque para todos
-        for (var item : itens) {
-
-            var produto = produtoRepositorio.findById(item.getProdutoId()).get();
-            produto.debitarEstoque(item.getQuantidade());
-
-            produtoRepositorio.save(produto);
-        }
-
-        return true;
     }
-
-
-
 
 
 
