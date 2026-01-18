@@ -24,6 +24,10 @@ spring:
     consumer:
       group-id: retail-order-processor
       auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+          spring.json.trusted.packages: br.com.hupsel.controleestoque.mensageria.pedido
     producer:
       acks: all
 

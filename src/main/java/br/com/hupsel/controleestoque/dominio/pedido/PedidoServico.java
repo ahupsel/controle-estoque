@@ -4,6 +4,8 @@ import br.com.hupsel.controleestoque.api.pedido.dto.PedidoCriarRequest;
 import br.com.hupsel.controleestoque.api.pedido.dto.PedidoCriarResponse;
 import br.com.hupsel.controleestoque.api.pedido.dto.PedidoResponse;
 import br.com.hupsel.controleestoque.dominio.cliente.ClienteRepositorio;
+import br.com.hupsel.controleestoque.dominio.produto.Produto;
+import br.com.hupsel.controleestoque.dominio.produto.ProdutoRepositorio;
 import br.com.hupsel.controleestoque.mensageria.pedido.PedidoCriadoEvento;
 import br.com.hupsel.controleestoque.mensageria.pedido.PublicadorPedidoCriado;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -19,6 +21,7 @@ public class PedidoServico {
 
     private final PedidoRepositorio pedidoRepositorio;
     private final ClienteRepositorio clienteRepositorio;
+    private final ProdutoRepositorio produtoRepositorio;
     private final PedidoItemRepositorio pedidoItemRepositorio;
     private final PedidoHistoricoRepositorio historicoRepositorio;
     private final KafkaTemplate<String, PedidoCriadoEvento> kafkaTemplate;
@@ -26,7 +29,7 @@ public class PedidoServico {
 
 
     public PedidoServico(
-            PedidoRepositorio pedidoRepositorio, ClienteRepositorio clienteRepositorio,
+            PedidoRepositorio pedidoRepositorio, ClienteRepositorio clienteRepositorio, ProdutoRepositorio produtoRepositorio,
             PedidoItemRepositorio pedidoItemRepositorio,
             PedidoHistoricoRepositorio historicoRepositorio,
             KafkaTemplate<String, PedidoCriadoEvento> kafkaTemplate,
@@ -34,6 +37,7 @@ public class PedidoServico {
     ) {
         this.pedidoRepositorio = pedidoRepositorio;
         this.clienteRepositorio = clienteRepositorio;
+        this.produtoRepositorio = produtoRepositorio;
         this.pedidoItemRepositorio = pedidoItemRepositorio;
         this.historicoRepositorio = historicoRepositorio;
         this.kafkaTemplate = kafkaTemplate;
@@ -57,8 +61,8 @@ public class PedidoServico {
 
         historicoRepositorio.save(new PedidoHistorico(pedido.getId(), StatusPedido.CRIADO, "Pedido criado"));
 
-        //kafkaTemplate.send(TOPICO_PEDIDO_CRIADO, new PedidoCriadoEvento(pedido.getId()));
-        publicador.publicar(pedido.getId());
+        kafkaTemplate.send(TOPICO_PEDIDO_CRIADO, new PedidoCriadoEvento(pedido.getId()));
+        //publicador.publicar(pedido.getId());
 
 
         return new PedidoCriarResponse(pedido.getId(), pedido.getStatus());
@@ -90,6 +94,11 @@ public class PedidoServico {
         var pedido = pedidoRepositorio.findById(pedidoId)
                 .orElseThrow(() -> new IllegalArgumentException("Pedido não encontrado"));
 
+        // 🔒 proteção contra reprocessamento
+        if (pedido.getStatus() != StatusPedido.CRIADO) {
+            return;
+        }
+
         pedido.atualizarStatus(StatusPedido.PROCESSANDO);
         pedidoRepositorio.save(pedido);
 
@@ -102,7 +111,7 @@ public class PedidoServico {
         if (estoqueReservado) {
             pedido.atualizarStatus(StatusPedido.APROVADO);
             historicoRepositorio.save(
-                    new PedidoHistorico(pedidoId, StatusPedido.APROVADO, "Estoque reservado")
+                    new PedidoHistorico(pedidoId, StatusPedido.APROVADO, "Pedido aprovado")
             );
         } else {
             pedido.atualizarStatus(StatusPedido.REJEITADO);
@@ -114,26 +123,36 @@ public class PedidoServico {
         pedidoRepositorio.save(pedido);
     }
 
+
+
     @Transactional
     public boolean reservarEstoque(Long pedidoId) {
 
-        var pedido = pedidoRepositorio.findById(pedidoId)
-                .orElseThrow(() -> new IllegalArgumentException("Pedido não encontrado"));
+        var itens = pedidoItemRepositorio.findByPedidoId(pedidoId);
 
-        pedido.atualizarStatus(StatusPedido.PROCESSANDO);
-        pedidoRepositorio.save(pedido);
+        for (var item : itens) {
 
-        historicoRepositorio.save(
-                new PedidoHistorico(
-                        pedido.getId(),
-                        StatusPedido.PROCESSANDO,
-                        "Iniciando reserva de estoque"
-                )
-        );
+            var produto = produtoRepositorio.findById(item.getProdutoId())
+                    .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
 
-        // ⚠️ por enquanto: mock de sucesso
+            if (produto.getEstoque() < item.getQuantidade()) {
+                return false;
+            }
+        }
+
+        // Se chegou aqui, tem estoque para todos
+        for (var item : itens) {
+
+            var produto = produtoRepositorio.findById(item.getProdutoId()).get();
+            produto.debitarEstoque(item.getQuantidade());
+
+            produtoRepositorio.save(produto);
+        }
+
         return true;
     }
+
+
 
 
 

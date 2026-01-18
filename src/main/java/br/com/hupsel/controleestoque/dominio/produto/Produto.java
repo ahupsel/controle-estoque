@@ -55,4 +55,16 @@ public class Produto {
     public void setPreco(BigDecimal preco) { this.preco = preco; }
     public void setEstoque(Integer estoque) { this.estoque = estoque; }
     public void setStatus(StatusProduto status) { this.status = status; }
+
+    public void debitarEstoque(Integer quantidade) {
+        if (quantidade == null || quantidade <= 0) {
+            throw new IllegalArgumentException("Quantidade inválida");
+        }
+
+        if (this.estoque < quantidade) {
+            throw new IllegalStateException("Estoque insuficiente");
+        }
+
+        this.estoque -= quantidade;
+    }
 }

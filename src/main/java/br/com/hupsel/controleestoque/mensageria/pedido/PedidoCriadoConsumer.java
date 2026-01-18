@@ -6,21 +6,18 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("docker")
 public class PedidoCriadoConsumer {
 
     private final PedidoServico pedidoServico;
 
     public PedidoCriadoConsumer(PedidoServico pedidoServico) {
         this.pedidoServico = pedidoServico;
+        System.out.println(">>> PedidoCriadoConsumer INSTANCIADO");
     }
 
-    @KafkaListener(
-            topics = "pedido-criado",
-            groupId = "pedido-processador"
-
-    )
+    @KafkaListener(topics = "pedido-criado", groupId = "pedido-processador")
     public void consumir(PedidoCriadoEvento evento) {
+        System.out.println(">>> EVENTO RECEBIDO: pedidoId=" + evento.pedidoId());
         pedidoServico.processar(evento.pedidoId());
     }
 }
